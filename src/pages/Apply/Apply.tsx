@@ -17,8 +17,9 @@ export const Apply: React.FC = () => {
   const [launchReason, setLaunchReason] = useState('');
   const [selectedApprover, setSelectedApprover] = useState('李管理员');
 
-  const pendingStrategies = strategies.filter((s) => s.status === 'draft' || s.status === 'pending');
-  const approvedStrategies = strategies.filter((s) => s.status === 'approved' || s.status === 'pending_launch');
+  const draftStrategies = strategies.filter((s) => s.status === 'draft');
+  const pendingStrategies = strategies.filter((s) => s.status === 'pending');
+  const pendingLaunchStrategies = strategies.filter((s) => s.status === 'pending_launch');
 
   const handleSubmitApplication = () => {
     if (!selectedStrategy) return;
@@ -92,15 +93,23 @@ export const Apply: React.FC = () => {
 
   const handleLaunch = (strategyId: string) => {
     const strategy = strategies.find(s => s.id === strategyId);
-    updateStrategy(strategyId, { status: 'active', launchTime: new Date().toISOString() }, currentUser.name);
+    const updates: Partial<Strategy> = {
+      status: 'active',
+      actualLaunchTime: new Date().toISOString(),
+    };
+    updateStrategy(strategyId, updates, currentUser.name);
     if (strategy) {
+      const scheduledTime = strategy.launchTime;
+      const details = scheduledTime
+        ? `计划上线时间：${dayjs(scheduledTime).format('YYYY-MM-DD HH:mm')}，已提前上线`
+        : '策略已上线';
       addAuditLog(
         strategyId,
         strategy.name,
         '策略上线',
         currentUser.id,
         currentUser.name,
-        '策略已成功上线'
+        details
       );
     }
   };
@@ -203,8 +212,8 @@ export const Apply: React.FC = () => {
               </h2>
             </CardHeader>
             <CardBody className="p-0">
-              <Table headers={['策略名称', '类型', '状态', '计划上线时间', '操作']}>
-                {pendingStrategies.map((strategy) => (
+              <Table headers={['策略名称', '类型', '状态', '操作']}>
+                {draftStrategies.map((strategy) => (
                   <TableRow key={strategy.id}>
                     <TableCell>
                       <p className="font-medium">{strategy.name}</p>
@@ -215,9 +224,6 @@ export const Apply: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={strategy.status} />
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {strategy.launchTime ? dayjs(strategy.launchTime).format('MM-DD HH:mm') : '-'}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -230,9 +236,9 @@ export const Apply: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {pendingStrategies.length === 0 && (
+                {draftStrategies.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">
                       暂无待提交的策略
                     </TableCell>
                   </TableRow>
@@ -245,12 +251,55 @@ export const Apply: React.FC = () => {
             <CardHeader>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Clock className="w-5 h-5 text-yellow-500" />
+                待审批（定时上线）
+              </h2>
+            </CardHeader>
+            <CardBody className="p-0">
+              <Table headers={['策略名称', '类型', '计划上线时间', '提交时间']}>
+                {pendingStrategies.map((strategy) => (
+                  <TableRow key={strategy.id}>
+                    <TableCell>
+                      <p className="font-medium">{strategy.name}</p>
+                      <p className="text-xs text-slate-500">{strategy.description}</p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="default">{strategy.type}</Badge>
+                    </TableCell>
+                    <TableCell className="text-slate-600">
+                      {strategy.launchTime ? (
+                        <span className="font-medium text-yellow-700">
+                          {dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-slate-600">
+                      {dayjs(strategy.updateTime).format('MM-DD HH:mm')}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {pendingStrategies.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">
+                      暂无待审批的策略
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Table>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
                 待上线策略
               </h2>
             </CardHeader>
             <CardBody className="p-0">
               <Table headers={['策略名称', '状态', '计划上线时间', '审批时间', '操作']}>
-                {approvedStrategies.filter(s => s.status === 'pending_launch').map((strategy) => (
+                {pendingLaunchStrategies.map((strategy) => (
                   <TableRow key={strategy.id}>
                     <TableCell>
                       <p className="font-medium">{strategy.name}</p>
@@ -259,7 +308,7 @@ export const Apply: React.FC = () => {
                       <StatusBadge status={strategy.status} />
                     </TableCell>
                     <TableCell className="text-slate-600">
-                      {strategy.launchTime ? dayjs(strategy.launchTime).format('MM-DD HH:mm') : '-'}
+                      {strategy.launchTime ? dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm') : '-'}
                     </TableCell>
                     <TableCell className="text-slate-600">
                       {strategy.approveTime ? dayjs(strategy.approveTime).format('MM-DD HH:mm') : '-'}
@@ -271,7 +320,7 @@ export const Apply: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {approvedStrategies.filter(s => s.status === 'pending_launch').length === 0 && (
+                {pendingLaunchStrategies.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                       暂无待上线的策略

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Calculator, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, TrendingUp, Users, Target, Zap, Pause, Play } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/Common/Card';
@@ -13,26 +13,6 @@ export const Dashboard: React.FC = () => {
   const { strategies, updateStrategy } = useStrategyStore();
   const { stats, todos, removeTodo } = useDashboardStore();
   const { currentUser } = useUserStore();
-
-  useEffect(() => {
-    const now = new Date();
-    strategies.forEach((strategy) => {
-      if (strategy.status === 'pending_launch' && strategy.launchTime) {
-        const launchTime = new Date(strategy.launchTime);
-        if (launchTime <= now) {
-          updateStrategy(strategy.id, { status: 'active' }, '系统');
-          addAuditLog(
-            strategy.id,
-            strategy.name,
-            '策略上线',
-            'system',
-            '系统',
-            `计划时间已到，策略自动上线`
-          );
-        }
-      }
-    });
-  }, [strategies, updateStrategy]);
 
   const handleToggleStatus = (strategy: Strategy) => {
     if (strategy.status === 'active') {

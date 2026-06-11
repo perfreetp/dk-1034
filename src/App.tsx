@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout/Layout';
 import { Dashboard } from './pages/Dashboard/Dashboard';
@@ -8,8 +8,34 @@ import { Trial } from './pages/Trial/Trial';
 import { Apply } from './pages/Apply/Apply';
 import { Analytics } from './pages/Analytics/Analytics';
 import { StrategyDetail } from './pages/StrategyDetail/StrategyDetail';
+import { useStrategyStore, addAuditLog } from './stores';
 
 function App() {
+  const { strategies, updateStrategy } = useStrategyStore();
+
+  useEffect(() => {
+    const now = new Date();
+    strategies.forEach((strategy) => {
+      if (strategy.status === 'pending_launch' && strategy.launchTime) {
+        const launchTime = new Date(strategy.launchTime);
+        if (launchTime <= now) {
+          updateStrategy(strategy.id, {
+            status: 'active',
+            actualLaunchTime: now.toISOString(),
+          }, '系统');
+          addAuditLog(
+            strategy.id,
+            strategy.name,
+            '策略上线',
+            'system',
+            '系统',
+            `计划时间已到，策略自动上线`
+          );
+        }
+      }
+    });
+  }, [strategies, updateStrategy]);
+
   return (
     <Router>
       <Layout>

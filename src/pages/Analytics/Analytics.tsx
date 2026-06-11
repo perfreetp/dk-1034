@@ -28,10 +28,12 @@ export const Analytics: React.FC = () => {
   ];
 
   const typeDistribution = [
-    { name: '折扣类', value: strategies.filter((s) => s.status === 'active' && s.type === 'discount').length },
-    { name: '提醒类', value: strategies.filter((s) => s.status === 'active' && s.type === 'reminder').length },
-    { name: '派单类', value: strategies.filter((s) => s.status === 'active' && s.type === 'dispatch').length },
-    { name: '准入类', value: strategies.filter((s) => s.status === 'active' && s.type === 'admission').length },
+    { name: '折扣类', value: strategies.filter((s) => s.status === 'active' && s.type === 'discount').length, color: '#10B981' },
+    { name: '提醒类', value: strategies.filter((s) => s.status === 'active' && s.type === 'reminder').length, color: '#2563EB' },
+    { name: '派单类', value: strategies.filter((s) => s.status === 'active' && s.type === 'dispatch').length, color: '#F59E0B' },
+    { name: '准入类', value: strategies.filter((s) => s.status === 'active' && s.type === 'admission').length, color: '#8B5CF6' },
+    { name: '积分类', value: strategies.filter((s) => s.status === 'active' && s.type === 'points').length, color: '#EC4899' },
+    { name: '赠品类', value: strategies.filter((s) => s.status === 'active' && s.type === 'gift').length, color: '#F97316' },
   ];
 
   const totalHits = activeStrategies.reduce((sum, s) => sum + (s.stats?.hitCount || 0), 0);
@@ -42,13 +44,23 @@ export const Analytics: React.FC = () => {
     ? activeStrategies.reduce((sum, s) => sum + (s.stats?.roi || 0), 0) / activeStrategies.length
     : 0;
 
-  const mockHitDetails = [
-    { id: 1, userId: 'U10001', strategyName: '新用户首单8折优惠', matchTime: '2024-01-19 14:32:15', city: '北京', amount: 299, discount: 59.8 },
-    { id: 2, userId: 'U10023', strategyName: '新用户首单8折优惠', matchTime: '2024-01-19 14:35:42', city: '上海', amount: 158, discount: 31.6 },
-    { id: 3, userId: 'U10045', strategyName: '会员日双倍积分', matchTime: '2024-01-19 14:38:21', city: '广州', amount: 520, discount: 0 },
-    { id: 4, userId: 'U10067', strategyName: '新用户首单8折优惠', matchTime: '2024-01-19 14:41:05', city: '深圳', amount: 880, discount: 176 },
-    { id: 5, userId: 'U10089', strategyName: 'VIP用户专属折扣', matchTime: '2024-01-19 14:45:33', city: '杭州', amount: 1200, discount: 60 },
-  ];
+  const mockHitDetails = activeStrategies.length > 0
+    ? activeStrategies.slice(0, 3).flatMap((strategy, sIdx) =>
+        Array.from({ length: Math.min(2, Math.ceil((strategy.stats?.hitCount || 0) / 10000)) }, (_, idx) => ({
+          id: sIdx * 10 + idx + 1,
+          userId: `U${10001 + sIdx * 10 + idx}`,
+          strategyName: strategy.name,
+          matchTime: dayjs().subtract(idx, 'hour').format('YYYY-MM-DD HH:mm:ss'),
+          city: strategy.dimensions.cities?.[0] || '全国',
+          amount: Math.floor(Math.random() * 1000) + 100,
+          discount: strategy.action.actionType === 'discount'
+            ? (strategy.action.discountType === 'percentage'
+              ? Math.floor((Math.random() * 1000) * (strategy.action.discountValue || 10) / 100)
+              : strategy.action.discountValue || 0)
+            : 0,
+        }))
+      )
+    : [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -187,7 +199,7 @@ export const Analytics: React.FC = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={typeDistribution}
+                    data={typeDistribution.filter(t => t.value > 0)}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -196,8 +208,8 @@ export const Analytics: React.FC = () => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {typeDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {typeDistribution.filter(t => t.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip />

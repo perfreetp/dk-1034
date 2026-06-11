@@ -249,9 +249,17 @@ export const StrategyDetail: React.FC = () => {
                 )}
                 {strategy.launchTime && (
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <span className="text-sm text-blue-600">上线时间</span>
+                    <span className="text-sm text-blue-600">计划上线时间</span>
                     <span className="text-sm font-medium text-blue-900">
                       {dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm:ss')}
+                    </span>
+                  </div>
+                )}
+                {strategy.actualLaunchTime && (
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm text-green-600">实际上线时间</span>
+                    <span className="text-sm font-medium text-green-900">
+                      {dayjs(strategy.actualLaunchTime).format('YYYY-MM-DD HH:mm:ss')}
                     </span>
                   </div>
                 )}
