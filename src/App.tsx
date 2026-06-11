@@ -7,6 +7,7 @@ import { Wizard } from './pages/Wizard/Wizard';
 import { Trial } from './pages/Trial/Trial';
 import { Apply } from './pages/Apply/Apply';
 import { Analytics } from './pages/Analytics/Analytics';
+import { StrategyDetail } from './pages/StrategyDetail/StrategyDetail';
 
 function App() {
   return (
@@ -21,6 +22,8 @@ function App() {
           <Route path="/apply" element={<Apply />} />
           <Route path="/apply/:strategyId" element={<Apply />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/strategy/:strategyId" element={<StrategyDetail />} />
+          <Route path="/strategy" element={<StrategyDetail />} />
         </Routes>
       </Layout>
     </Router>

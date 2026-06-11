@@ -93,8 +93,8 @@ export const Trial: React.FC = () => {
 
   const findConflicts = (strategy: Strategy): string[] => {
     const conflicts: string[] = [];
-    strategies.forEach((s) => {
-      if (s.id !== strategy.id && s.status === 'active' && s.type === strategy.type) {
+    strategies.filter(s => s.status === 'active').forEach((s) => {
+      if (s.id !== strategy.id && s.type === strategy.type) {
         const hasOverlap =
           (s.dimensions.cities?.some((c) => strategy.dimensions.cities?.includes(c)) ||
             s.dimensions.cities?.includes('全国') ||
@@ -135,11 +135,11 @@ export const Trial: React.FC = () => {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <h2 className="text-lg font-semibold">选择策略</h2>
+              <h2 className="text-lg font-semibold">选择策略（仅显示已上线策略）</h2>
             </CardHeader>
             <CardBody>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {strategies.map((strategy) => (
+                {strategies.filter(s => s.status === 'active').map((strategy) => (
                   <div
                     key={strategy.id}
                     onClick={() => setSelectedStrategy(strategy)}
@@ -154,12 +154,22 @@ export const Trial: React.FC = () => {
                         <p className="font-medium text-slate-900">{strategy.name}</p>
                         <p className="text-sm text-slate-500 mt-1">{strategy.description}</p>
                       </div>
-                      <Badge variant={strategy.status === 'active' ? 'success' : 'default'}>
-                        {strategy.status === 'active' ? '已上线' : strategy.status}
+                      <Badge variant="success">
+                        已上线
                       </Badge>
                     </div>
                   </div>
                 ))}
+                {strategies.filter(s => s.status === 'active').length === 0 && (
+                  <div className="text-center py-8 text-slate-500">
+                    暂无已上线的策略
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">提示：</span>仅可试算已上线策略。待审批、待上线、已暂停的策略不参与试算。
+                </p>
               </div>
             </CardBody>
           </Card>

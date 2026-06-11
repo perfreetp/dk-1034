@@ -15,7 +15,7 @@ export const Analytics: React.FC = () => {
   const { logs } = useAuditStore();
   const [timeRange, setTimeRange] = useState('7d');
 
-  const activeStrategies = strategies.filter((s) => s.stats);
+  const activeStrategies = strategies.filter((s) => s.status === 'active' && s.stats);
 
   const trendData = [
     { date: '1月1日', hits: 4200, conversions: 1380, revenue: 85000 },
@@ -28,15 +28,19 @@ export const Analytics: React.FC = () => {
   ];
 
   const typeDistribution = [
-    { name: '折扣类', value: strategies.filter((s) => s.type === 'discount').length },
-    { name: '提醒类', value: strategies.filter((s) => s.type === 'reminder').length },
-    { name: '派单类', value: strategies.filter((s) => s.type === 'dispatch').length },
-    { name: '准入类', value: strategies.filter((s) => s.type === 'admission').length },
+    { name: '折扣类', value: strategies.filter((s) => s.status === 'active' && s.type === 'discount').length },
+    { name: '提醒类', value: strategies.filter((s) => s.status === 'active' && s.type === 'reminder').length },
+    { name: '派单类', value: strategies.filter((s) => s.status === 'active' && s.type === 'dispatch').length },
+    { name: '准入类', value: strategies.filter((s) => s.status === 'active' && s.type === 'admission').length },
   ];
 
   const totalHits = activeStrategies.reduce((sum, s) => sum + (s.stats?.hitCount || 0), 0);
-  const avgConversion = activeStrategies.reduce((sum, s) => sum + (s.stats?.conversionRate || 0), 0) / activeStrategies.length;
-  const avgRoi = activeStrategies.reduce((sum, s) => sum + (s.stats?.roi || 0), 0) / activeStrategies.length;
+  const avgConversion = activeStrategies.length > 0
+    ? activeStrategies.reduce((sum, s) => sum + (s.stats?.conversionRate || 0), 0) / activeStrategies.length
+    : 0;
+  const avgRoi = activeStrategies.length > 0
+    ? activeStrategies.reduce((sum, s) => sum + (s.stats?.roi || 0), 0) / activeStrategies.length
+    : 0;
 
   const mockHitDetails = [
     { id: 1, userId: 'U10001', strategyName: '新用户首单8折优惠', matchTime: '2024-01-19 14:32:15', city: '北京', amount: 299, discount: 59.8 },
