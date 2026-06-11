@@ -2,25 +2,63 @@ import { create } from 'zustand';
 import type { Strategy, Template, User, AuditLog, DashboardStats, TodoItem } from '../types';
 import { mockStrategies, mockTemplates, mockAuditLogs, mockDashboardStats, mockTodoItems, mockUsers } from '../data/mockData';
 
+const STORAGE_KEYS = {
+  strategies: 'rule_engine_strategies',
+  logs: 'rule_engine_logs',
+  dashboard: 'rule_engine_dashboard',
+  todos: 'rule_engine_todos',
+};
+
+const loadFromStorage = <T>(key: string, defaultValue: T): T => {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+};
+
+const saveToStorage = <T>(key: string, value: T) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error('Failed to save to localStorage:', error);
+  }
+};
+
 interface StrategyStore {
   strategies: Strategy[];
   currentStrategy: Strategy | null;
-  addStrategy: (strategy: Strategy) => void;
-  updateStrategy: (id: string, updates: Partial<Strategy>) => void;
+  addStrategy: (strategy: Strategy, operatorName?: string) => void;
+  updateStrategy: (id: string, updates: Partial<Strategy>, operatorName?: string) => void;
   deleteStrategy: (id: string) => void;
   setCurrentStrategy: (strategy: Strategy | null) => void;
   getStrategyById: (id: string) => Strategy | undefined;
 }
 
 export const useStrategyStore = create<StrategyStore>((set, get) => ({
-  strategies: mockStrategies,
+  strategies: loadFromStorage(STORAGE_KEYS.strategies, mockStrategies),
   currentStrategy: null,
-  addStrategy: (strategy) => set((state) => ({ strategies: [...state.strategies, strategy] })),
-  updateStrategy: (id, updates) =>
-    set((state) => ({
-      strategies: state.strategies.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-    })),
-  deleteStrategy: (id) => set((state) => ({ strategies: state.strategies.filter((s) => s.id !== id) })),
+  addStrategy: (strategy, operatorName = '系统') => {
+    const newStrategies = [...get().strategies, strategy];
+    set({ strategies: newStrategies });
+    saveToStorage(STORAGE_KEYS.strategies, newStrategies);
+  },
+  updateStrategy: (id, updates, operatorName = '系统') => {
+    const strategy = get().getStrategyById(id);
+    if (!strategy) return;
+    
+    const newStrategies = get().strategies.map((s) => 
+      s.id === id ? { ...s, ...updates } : s
+    );
+    set({ strategies: newStrategies });
+    saveToStorage(STORAGE_KEYS.strategies, newStrategies);
+  },
+  deleteStrategy: (id) => {
+    const newStrategies = get().strategies.filter((s) => s.id !== id);
+    set({ strategies: newStrategies });
+    saveToStorage(STORAGE_KEYS.strategies, newStrategies);
+  },
   setCurrentStrategy: (strategy) => set({ currentStrategy: strategy }),
   getStrategyById: (id) => get().strategies.find((s) => s.id === id),
 }));
@@ -58,8 +96,12 @@ interface AuditStore {
 }
 
 export const useAuditStore = create<AuditStore>((set, get) => ({
-  logs: mockAuditLogs,
-  addLog: (log) => set((state) => ({ logs: [log, ...state.logs] })),
+  logs: loadFromStorage(STORAGE_KEYS.logs, mockAuditLogs),
+  addLog: (log) => {
+    const newLogs = [log, ...get().logs];
+    set({ logs: newLogs });
+    saveToStorage(STORAGE_KEYS.logs, newLogs);
+  },
   getLogsByStrategyId: (strategyId) => get().logs.filter((log) => log.strategyId === strategyId),
 }));
 
@@ -71,10 +113,22 @@ interface DashboardStore {
 }
 
 export const useDashboardStore = create<DashboardStore>((set) => ({
-  stats: mockDashboardStats,
-  todos: mockTodoItems,
-  updateStats: (updates) => set((state) => ({ stats: { ...state.stats, ...updates } })),
-  removeTodo: (id) => set((state) => ({ todos: state.todos.filter((t) => t.id !== id) })),
+  stats: loadFromStorage(STORAGE_KEYS.dashboard, mockDashboardStats),
+  todos: loadFromStorage(STORAGE_KEYS.todos, mockTodoItems),
+  updateStats: (updates) => {
+    set((state) => {
+      const newStats = { ...state.stats, ...updates };
+      saveToStorage(STORAGE_KEYS.dashboard, newStats);
+      return { stats: newStats };
+    });
+  },
+  removeTodo: (id) => {
+    set((state) => {
+      const newTodos = state.todos.filter((t) => t.id !== id);
+      saveToStorage(STORAGE_KEYS.todos, newTodos);
+      return { todos: newTodos };
+    });
+  },
 }));
 
 interface WizardStore {
@@ -96,3 +150,24 @@ export const useWizardStore = create<WizardStore>((set) => ({
   updateWizardData: (data) => set((state) => ({ wizardData: { ...state.wizardData, ...data } })),
   resetWizard: () => set({ currentStep: 0, wizardData: {} }),
 }));
+
+export const addAuditLog = (
+  strategyId: string,
+  strategyName: string,
+  action: string,
+  operator: string,
+  operatorName: string,
+  details?: string
+) => {
+  const log: AuditLog = {
+    id: Date.now().toString(),
+    strategyId,
+    strategyName,
+    action,
+    operator,
+    operatorName,
+    createTime: new Date().toISOString(),
+    details,
+  };
+  useAuditStore.getState().addLog(log);
+};

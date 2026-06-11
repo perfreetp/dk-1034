@@ -56,6 +56,21 @@ export const Trial: React.FC = () => {
         return false;
       }
     }
+    
+    const timeSlot = strategy.dimensions.timeSlots?.[0];
+    if (timeSlot) {
+      const now = new Date(data.time);
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const [startHour, startMin] = timeSlot.start.split(':').map(Number);
+      const [endHour, endMin] = timeSlot.end.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
+        return false;
+      }
+    }
+    
     return true;
   };
 
@@ -243,6 +258,12 @@ export const Trial: React.FC = () => {
                           {selectedStrategy.dimensions.effectiveStart || '长期'} 至{' '}
                           {selectedStrategy.dimensions.effectiveEnd || '永久'}
                         </p>
+                        {selectedStrategy.dimensions.timeSlots?.[0] && (
+                          <p>
+                            <span className="text-purple-700">每天适用时间段：</span>
+                            {selectedStrategy.dimensions.timeSlots[0].start} - {selectedStrategy.dimensions.timeSlots[0].end}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -317,6 +338,16 @@ export const Trial: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">测试时间</label>
+                <input
+                  type="datetime-local"
+                  value={testData.time.slice(0, 16)}
+                  onChange={(e) => setTestData({ ...testData, time: new Date(e.target.value).toISOString() })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">用于测试时间段条件</p>
               </div>
               <Button
                 variant="primary"

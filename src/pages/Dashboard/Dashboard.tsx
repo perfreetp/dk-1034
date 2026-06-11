@@ -1,16 +1,28 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Calculator, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, TrendingUp, Users, Target, Zap } from 'lucide-react';
+import { Plus, Calculator, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, TrendingUp, Users, Target, Zap, Pause, Play } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/Common/Card';
 import { Button } from '../../components/Common/Button';
 import { StatusBadge, TypeBadge } from '../../components/Common/Badge';
 import { Table, TableRow, TableCell } from '../../components/Common/Table';
-import { useStrategyStore, useDashboardStore } from '../../stores';
+import { useStrategyStore, useDashboardStore, useUserStore, addAuditLog } from '../../stores';
+import type { Strategy } from '../../types';
 import dayjs from 'dayjs';
 
 export const Dashboard: React.FC = () => {
-  const { strategies } = useStrategyStore();
+  const { strategies, updateStrategy } = useStrategyStore();
   const { stats, todos, removeTodo } = useDashboardStore();
+  const { currentUser } = useUserStore();
+
+  const handleToggleStatus = (strategy: Strategy) => {
+    if (strategy.status === 'active') {
+      updateStrategy(strategy.id, { status: 'paused', updateTime: new Date().toISOString() }, currentUser.name);
+      addAuditLog(strategy.id, strategy.name, '策略暂停', currentUser.id, currentUser.name, '策略已暂停');
+    } else if (strategy.status === 'paused') {
+      updateStrategy(strategy.id, { status: 'active', updateTime: new Date().toISOString() }, currentUser.name);
+      addAuditLog(strategy.id, strategy.name, '策略恢复', currentUser.id, currentUser.name, '策略已恢复上线');
+    }
+  };
 
   const statCards = [
     { label: '策略总数', value: stats.totalStrategies, icon: Target, color: 'blue', change: '+12%' },
@@ -103,6 +115,25 @@ export const Dashboard: React.FC = () => {
                         <Button variant="outline" size="sm">
                           编辑
                         </Button>
+                        {(strategy.status === 'active' || strategy.status === 'paused') && (
+                          <Button
+                            variant={strategy.status === 'active' ? 'warning' : 'success'}
+                            size="sm"
+                            onClick={() => handleToggleStatus(strategy)}
+                          >
+                            {strategy.status === 'active' ? (
+                              <>
+                                <Pause className="w-3 h-3" />
+                                暂停
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3" />
+                                恢复
+                              </>
+                            )}
+                          </Button>
+                        )}
                         <Link to={`/analytics?strategy=${strategy.id}`}>
                           <Button variant="secondary" size="sm">
                             详情

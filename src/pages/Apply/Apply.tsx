@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Send, Clock, CheckCircle, XCircle, Calendar, User, FileText, History } from 'lucide-react';
+import { Send, Clock, CheckCircle, XCircle, Calendar, User, FileText, History, Pause, Play } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/Common/Card';
 import { Button } from '../../components/Common/Button';
 import { Badge } from '../../components/Common/Badge';
 import { StatusBadge } from '../../components/Common/Badge';
 import { Table, TableRow, TableCell } from '../../components/Common/Table';
-import { useStrategyStore } from '../../stores';
+import { useStrategyStore, useUserStore, addAuditLog } from '../../stores';
 import type { Strategy } from '../../types';
 import dayjs from 'dayjs';
 
 export const Apply: React.FC = () => {
   const { strategies, updateStrategy } = useStrategyStore();
+  const { currentUser } = useUserStore();
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   const [launchTime, setLaunchTime] = useState('');
   const [launchReason, setLaunchReason] = useState('');
@@ -21,23 +22,100 @@ export const Apply: React.FC = () => {
 
   const handleSubmitApplication = () => {
     if (!selectedStrategy) return;
-    updateStrategy(selectedStrategy.id, { status: 'pending' });
+    const newStatus = launchTime ? 'pending_launch' : 'pending';
+    const updates: Partial<Strategy> = {
+      status: newStatus as any,
+      launchTime: launchTime || undefined,
+    };
+    updateStrategy(selectedStrategy.id, updates, currentUser.name);
+    addAuditLog(
+      selectedStrategy.id,
+      selectedStrategy.name,
+      '提交审批',
+      currentUser.id,
+      currentUser.name,
+      `提交上线申请${launchTime ? `，计划上线时间：${launchTime}` : ''}`
+    );
     setSelectedStrategy(null);
     setLaunchReason('');
     setLaunchTime('');
   };
 
   const handleApprove = (strategyId: string) => {
-    updateStrategy(strategyId, { status: 'approved', approver: '当前用户', approveTime: new Date().toISOString() });
+    const strategy = strategies.find(s => s.id === strategyId);
+    const newStatus = strategy?.launchTime ? 'pending_launch' : 'approved';
+    updateStrategy(strategyId, {
+      status: newStatus as any,
+      approver: currentUser.name,
+      approveTime: new Date().toISOString()
+    }, currentUser.name);
+    if (strategy) {
+      addAuditLog(
+        strategyId,
+        strategy.name,
+        '审批通过',
+        currentUser.id,
+        currentUser.name,
+        newStatus === 'pending_launch' ? '审批通过，进入待上线状态' : '审批通过，策略已准备好上线'
+      );
+    }
   };
 
   const handleReject = (strategyId: string) => {
-    updateStrategy(strategyId, { status: 'draft' });
+    const strategy = strategies.find(s => s.id === strategyId);
+    updateStrategy(strategyId, { status: 'draft' }, currentUser.name);
+    if (strategy) {
+      addAuditLog(
+        strategyId,
+        strategy.name,
+        '审批驳回',
+        currentUser.id,
+        currentUser.name,
+        '审批未通过，策略已驳回'
+      );
+    }
   };
 
   const handleLaunch = (strategyId: string) => {
-    updateStrategy(strategyId, { status: 'active', launchTime: new Date().toISOString() });
+    const strategy = strategies.find(s => s.id === strategyId);
+    updateStrategy(strategyId, { status: 'active', launchTime: new Date().toISOString() }, currentUser.name);
+    if (strategy) {
+      addAuditLog(
+        strategyId,
+        strategy.name,
+        '策略上线',
+        currentUser.id,
+        currentUser.name,
+        '策略已成功上线'
+      );
+    }
   };
+
+  const handleToggleStatus = (strategy: Strategy) => {
+    if (strategy.status === 'active') {
+      updateStrategy(strategy.id, { status: 'paused', updateTime: new Date().toISOString() }, currentUser.name);
+      addAuditLog(
+        strategy.id,
+        strategy.name,
+        '策略暂停',
+        currentUser.id,
+        currentUser.name,
+        '策略已暂停'
+      );
+    } else if (strategy.status === 'paused') {
+      updateStrategy(strategy.id, { status: 'active', updateTime: new Date().toISOString() }, currentUser.name);
+      addAuditLog(
+        strategy.id,
+        strategy.name,
+        '策略恢复',
+        currentUser.id,
+        currentUser.name,
+        '策略已恢复上线'
+      );
+    }
+  };
+
+  const activeStrategies = strategies.filter((s) => s.status === 'active' || s.status === 'paused');
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -45,6 +123,61 @@ export const Apply: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900">上线申请</h1>
         <p className="text-slate-600 mt-1">提交策略上线申请，管理审批流程</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-500" />
+            已上线策略管理
+          </h2>
+        </CardHeader>
+        <CardBody className="p-0">
+          <Table headers={['策略名称', '类型', '状态', '上线时间', '操作']}>
+            {activeStrategies.map((strategy) => (
+              <TableRow key={strategy.id}>
+                <TableCell>
+                  <p className="font-medium">{strategy.name}</p>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="default">{strategy.type}</Badge>
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={strategy.status} />
+                </TableCell>
+                <TableCell className="text-slate-600">
+                  {strategy.launchTime ? dayjs(strategy.launchTime).format('MM-DD HH:mm') : '-'}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant={strategy.status === 'active' ? 'warning' : 'success'}
+                    size="sm"
+                    onClick={() => handleToggleStatus(strategy)}
+                  >
+                    {strategy.status === 'active' ? (
+                      <>
+                        <Pause className="w-3 h-3" />
+                        暂停
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3 h-3" />
+                        恢复
+                      </>
+                    )}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {activeStrategies.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                  暂无已上线或已暂停的策略
+                </TableCell>
+              </TableRow>
+            )}
+          </Table>
+        </CardBody>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
@@ -99,26 +232,35 @@ export const Apply: React.FC = () => {
               </h2>
             </CardHeader>
             <CardBody className="p-0">
-              <Table headers={['策略名称', '审批人', '审批时间', '操作']}>
+              <Table headers={['策略名称', '状态', '计划上线时间', '审批时间', '操作']}>
                 {approvedStrategies.map((strategy) => (
                   <TableRow key={strategy.id}>
                     <TableCell>
                       <p className="font-medium">{strategy.name}</p>
                     </TableCell>
-                    <TableCell className="text-slate-600">{strategy.approver || '-'}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={strategy.status} />
+                    </TableCell>
+                    <TableCell className="text-slate-600">
+                      {strategy.launchTime ? dayjs(strategy.launchTime).format('MM-DD HH:mm') : '-'}
+                    </TableCell>
                     <TableCell className="text-slate-600">
                       {strategy.approveTime ? dayjs(strategy.approveTime).format('MM-DD HH:mm') : '-'}
                     </TableCell>
                     <TableCell>
-                      <Button variant="success" size="sm" onClick={() => handleLaunch(strategy.id)}>
-                        立即上线
-                      </Button>
+                      {strategy.status === 'approved' ? (
+                        <Button variant="success" size="sm" onClick={() => handleLaunch(strategy.id)}>
+                          立即上线
+                        </Button>
+                      ) : (
+                        <StatusBadge status="pending_launch" />
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
                 {approvedStrategies.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                       暂无已审批的策略
                     </TableCell>
                   </TableRow>
@@ -181,9 +323,11 @@ export const Apply: React.FC = () => {
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium text-blue-900">上线后策略将立即生效</p>
+                      <p className="font-medium text-blue-900">{launchTime ? '定时上线流程' : '立即上线流程'}</p>
                       <p className="text-sm text-blue-700 mt-1">
-                        请确保策略配置正确，上线后将自动执行。
+                        {launchTime
+                          ? '审批通过后策略将进入待上线状态，在计划时间自动生效。您也可以提前点击立即上线。'
+                          : '审批通过后策略将立即生效。请确保策略配置正确。'}
                       </p>
                     </div>
                   </div>

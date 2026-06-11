@@ -4,7 +4,7 @@ import { Check, ChevronRight, ChevronLeft, Percent, Bell, Truck, Shield, AlertCi
 import { Card, CardBody } from '../../components/Common/Card';
 import { Button } from '../../components/Common/Button';
 import { Badge } from '../../components/Common/Badge';
-import { useWizardStore, useTemplateStore, useStrategyStore } from '../../stores';
+import { useWizardStore, useTemplateStore, useStrategyStore, useUserStore, addAuditLog } from '../../stores';
 import { cities, userTypes, userLevels, strategyTypes } from '../../data/mockData';
 import type { Strategy, StrategyType } from '../../types';
 
@@ -18,6 +18,7 @@ const steps = [
 
 export const Wizard: React.FC = () => {
   const navigate = useNavigate();
+  const { currentUser } = useUserStore();
   const { templateId } = useParams();
   const { currentStep, wizardData, setCurrentStep, nextStep, prevStep, updateWizardData, resetWizard } = useWizardStore();
   const { getTemplateById } = useTemplateStore();
@@ -40,6 +41,8 @@ export const Wizard: React.FC = () => {
     pointsMultiplier: 1,
     effectiveStart: '',
     effectiveEnd: '',
+    timeSlotStart: '00:00',
+    timeSlotEnd: '23:59',
   });
 
   useEffect(() => {
@@ -49,6 +52,10 @@ export const Wizard: React.FC = () => {
         setFormData((prev) => ({
           ...prev,
           type: template.type,
+          userTypes: template.defaultTrigger?.userTypes || [],
+          minAmount: template.defaultTrigger?.minAmount || 0,
+          maxAmount: template.defaultTrigger?.maxAmount || 0,
+          userLevels: template.defaultTrigger?.userLevels || [],
           actionType: template.defaultAction?.actionType || 'discount',
           discountType: template.defaultAction?.discountType || 'percentage',
           discountValue: template.defaultAction?.discountValue || 0,
@@ -83,16 +90,17 @@ export const Wizard: React.FC = () => {
       },
       dimensions: {
         cities: formData.cities,
-        timeSlots: [{ start: '00:00', end: '23:59' }],
+        timeSlots: [{ start: formData.timeSlotStart, end: formData.timeSlotEnd }],
         effectiveStart: formData.effectiveStart,
         effectiveEnd: formData.effectiveEnd,
       },
-      creator: '当前用户',
+      creator: currentUser.name,
       createTime: new Date().toISOString(),
       updateTime: new Date().toISOString(),
     };
 
-    addStrategy(newStrategy);
+    addStrategy(newStrategy, currentUser.name);
+    addAuditLog(newStrategy.id, newStrategy.name, '创建策略', currentUser.id, currentUser.name, '创建了新的策略');
     resetWizard();
     navigate('/');
   };
@@ -396,6 +404,31 @@ export const Wizard: React.FC = () => {
                 />
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">每天适用时间段</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">开始时间</label>
+                  <input
+                    type="time"
+                    value={formData.timeSlotStart}
+                    onChange={(e) => setFormData({ ...formData, timeSlotStart: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">结束时间</label>
+                  <input
+                    type="time"
+                    value={formData.timeSlotEnd}
+                    onChange={(e) => setFormData({ ...formData, timeSlotEnd: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">设置策略每天生效的时间段，不在时间段内的订单不会命中</p>
+            </div>
           </div>
         );
 
@@ -444,6 +477,12 @@ export const Wizard: React.FC = () => {
                     <p className="text-sm text-slate-500">有效期</p>
                     <p className="font-medium">
                       {formData.effectiveStart || '未设置'} {formData.effectiveEnd && `至 ${formData.effectiveEnd}`}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <p className="text-sm text-slate-500">每天适用时间段</p>
+                    <p className="font-medium">
+                      {formData.timeSlotStart} - {formData.timeSlotEnd}
                     </p>
                   </div>
                 </div>
