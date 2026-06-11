@@ -58,6 +58,7 @@ export interface Strategy {
   approveTime?: string;
   launchTime?: string;
   actualLaunchTime?: string;
+  approvalComment?: string;
   stats?: StrategyStats;
 }
 

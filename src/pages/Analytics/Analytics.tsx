@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, Target, DollarSign, Download, Filter, Calendar, Eye } from 'lucide-react';
+import { TrendingUp, Users, Target, DollarSign, Download, Filter, Calendar, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/Common/Card';
 import { Button } from '../../components/Common/Button';
 import { Table, TableRow, TableCell } from '../../components/Common/Table';
 import { StatusBadge, TypeBadge, Badge } from '../../components/Common/Badge';
 import { useStrategyStore, useAuditStore } from '../../stores';
+import type { Strategy } from '../../types';
 import dayjs from 'dayjs';
 
 const COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -14,38 +15,60 @@ export const Analytics: React.FC = () => {
   const { strategies } = useStrategyStore();
   const { logs } = useAuditStore();
   const [timeRange, setTimeRange] = useState('7d');
+  const [selectedCity, setSelectedCity] = useState<string>('全部');
+  const [selectedType, setSelectedType] = useState<string>('全部');
+  const [expandedStrategyId, setExpandedStrategyId] = useState<string | null>(null);
 
   const activeStrategies = strategies.filter((s) => s.status === 'active' && s.stats);
 
-  const trendData = [
-    { date: '1月1日', hits: 4200, conversions: 1380, revenue: 85000 },
-    { date: '1月2日', hits: 4800, conversions: 1580, revenue: 92000 },
-    { date: '1月3日', hits: 5100, conversions: 1680, revenue: 98000 },
-    { date: '1月4日', hits: 4600, conversions: 1520, revenue: 89000 },
-    { date: '1月5日', hits: 5300, conversions: 1750, revenue: 105000 },
-    { date: '1月6日', hits: 5800, conversions: 1910, revenue: 112000 },
-    { date: '1月7日', hits: 6200, conversions: 2040, revenue: 120000 },
-  ];
+  const allCities = ['全部', ...Array.from(new Set(activeStrategies.flatMap(s => s.dimensions.cities || [])))];
+  const allTypes = ['全部', ...Array.from(new Set(activeStrategies.map(s => s.type)))];
+
+  const filteredStrategies = activeStrategies.filter((s) => {
+    const cityMatch = selectedCity === '全部' || s.dimensions.cities?.includes(selectedCity);
+    const typeMatch = selectedType === '全部' || s.type === selectedType;
+    return cityMatch && typeMatch;
+  });
+
+  const trendData = Array.from({ length: 7 }, (_, i) => {
+    const date = dayjs().subtract(6 - i, 'day');
+    return {
+      date: date.format('M月D日'),
+      hits: Math.floor(Math.random() * 3000) + 4000,
+      conversions: Math.floor(Math.random() * 1000) + 1300,
+      revenue: Math.floor(Math.random() * 40000) + 80000,
+    };
+  });
+
+  const getStrategyTrend = (strategy: Strategy) => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = dayjs().subtract(6 - i, 'day');
+      return {
+        date: date.format('M月D日'),
+        hits: Math.floor((strategy.stats?.hitCount || 0) / 30 * (0.8 + Math.random() * 0.4)),
+      };
+    });
+  };
 
   const typeDistribution = [
-    { name: '折扣类', value: strategies.filter((s) => s.status === 'active' && s.type === 'discount').length, color: '#10B981' },
-    { name: '提醒类', value: strategies.filter((s) => s.status === 'active' && s.type === 'reminder').length, color: '#2563EB' },
-    { name: '派单类', value: strategies.filter((s) => s.status === 'active' && s.type === 'dispatch').length, color: '#F59E0B' },
-    { name: '准入类', value: strategies.filter((s) => s.status === 'active' && s.type === 'admission').length, color: '#8B5CF6' },
-    { name: '积分类', value: strategies.filter((s) => s.status === 'active' && s.type === 'points').length, color: '#EC4899' },
-    { name: '赠品类', value: strategies.filter((s) => s.status === 'active' && s.type === 'gift').length, color: '#F97316' },
+    { name: '折扣类', value: filteredStrategies.filter((s) => s.type === 'discount').length, color: '#10B981' },
+    { name: '提醒类', value: filteredStrategies.filter((s) => s.type === 'reminder').length, color: '#2563EB' },
+    { name: '派单类', value: filteredStrategies.filter((s) => s.type === 'dispatch').length, color: '#F59E0B' },
+    { name: '准入类', value: filteredStrategies.filter((s) => s.type === 'admission').length, color: '#8B5CF6' },
+    { name: '积分类', value: filteredStrategies.filter((s) => s.type === 'points').length, color: '#EC4899' },
+    { name: '赠品类', value: filteredStrategies.filter((s) => s.type === 'gift').length, color: '#F97316' },
   ];
 
-  const totalHits = activeStrategies.reduce((sum, s) => sum + (s.stats?.hitCount || 0), 0);
-  const avgConversion = activeStrategies.length > 0
-    ? activeStrategies.reduce((sum, s) => sum + (s.stats?.conversionRate || 0), 0) / activeStrategies.length
+  const totalHits = filteredStrategies.reduce((sum, s) => sum + (s.stats?.hitCount || 0), 0);
+  const avgConversion = filteredStrategies.length > 0
+    ? filteredStrategies.reduce((sum, s) => sum + (s.stats?.conversionRate || 0), 0) / filteredStrategies.length
     : 0;
-  const avgRoi = activeStrategies.length > 0
-    ? activeStrategies.reduce((sum, s) => sum + (s.stats?.roi || 0), 0) / activeStrategies.length
+  const avgRoi = filteredStrategies.length > 0
+    ? filteredStrategies.reduce((sum, s) => sum + (s.stats?.roi || 0), 0) / filteredStrategies.length
     : 0;
 
-  const mockHitDetails = activeStrategies.length > 0
-    ? activeStrategies.slice(0, 3).flatMap((strategy, sIdx) =>
+  const mockHitDetails = filteredStrategies.length > 0
+    ? filteredStrategies.slice(0, 3).flatMap((strategy, sIdx) =>
         Array.from({ length: Math.min(2, Math.ceil((strategy.stats?.hitCount || 0) / 10000)) }, (_, idx) => ({
           id: sIdx * 10 + idx + 1,
           userId: `U${10001 + sIdx * 10 + idx}`,
@@ -69,7 +92,31 @@ export const Analytics: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900">效果看板</h1>
           <p className="text-slate-600 mt-1">追踪策略效果，分析运营数据</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              className="text-sm border-none focus:outline-none bg-transparent"
+            >
+              {allCities.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="text-sm border-none focus:outline-none bg-transparent"
+            >
+              {allTypes.map((type) => (
+                <option key={type} value={type}>{type === '全部' ? '全部类型' : type}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2 bg-white border border-slate-200 rounded-lg p-1">
             {['1d', '7d', '30d', '90d'].map((range) => (
               <button
@@ -255,40 +302,76 @@ export const Analytics: React.FC = () => {
           </CardHeader>
           <CardBody className="p-0">
             <div className="divide-y divide-slate-100">
-              {activeStrategies
+              {filteredStrategies
                 .sort((a, b) => (b.stats?.hitCount || 0) - (a.stats?.hitCount || 0))
                 .slice(0, 5)
-                .map((strategy, index) => (
-                  <div key={strategy.id} className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-slate-400' : index === 2 ? 'bg-orange-400' : 'bg-slate-300'
-                        }`}>
-                          {index + 1}
+                .map((strategy, index) => {
+                  const isExpanded = expandedStrategyId === strategy.id;
+                  return (
+                    <div key={strategy.id}>
+                      <div
+                        className="p-4 hover:bg-slate-50 cursor-pointer transition-colors"
+                        onClick={() => setExpandedStrategyId(isExpanded ? null : strategy.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                              index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-slate-400' : index === 2 ? 'bg-orange-400' : 'bg-slate-300'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{strategy.name}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                转化率: {strategy.stats?.conversionRate.toFixed(1)}% | ROI: {strategy.stats?.roi.toFixed(2)}x
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-blue-600">{strategy.stats?.hitCount.toLocaleString()}</p>
+                              <p className="text-xs text-slate-500">命中次数</p>
+                            </div>
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-slate-400" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-900">{strategy.name}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            转化率: {strategy.stats?.conversionRate.toFixed(1)}% | ROI: {strategy.stats?.roi.toFixed(2)}x
-                          </p>
+                        <div className="mt-3">
+                          <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-500 h-2 rounded-full transition-all"
+                              style={{ width: `${((strategy.stats?.hitCount || 0) / (filteredStrategies[0]?.stats?.hitCount || 1)) * 100}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-blue-600">{strategy.stats?.hitCount.toLocaleString()}</p>
-                        <p className="text-xs text-slate-500">命中次数</p>
-                      </div>
+                      
+                      {isExpanded && (
+                        <div className="px-4 pb-4 bg-blue-50">
+                          <p className="text-sm font-medium text-blue-900 mb-3">最近7天命中趋势</p>
+                          <ResponsiveContainer width="100%" height={150}>
+                            <LineChart data={getStrategyTrend(strategy)}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                              <XAxis dataKey="date" stroke="#6366f1" fontSize={10} />
+                              <YAxis stroke="#6366f1" fontSize={10} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: '#fff',
+                                  border: '1px solid #e0e7ff',
+                                  borderRadius: '8px',
+                                }}
+                              />
+                              <Line type="monotone" dataKey="hits" stroke="#2563EB" strokeWidth={2} name="命中次数" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-3">
-                      <div className="w-full bg-slate-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full transition-all"
-                          style={{ width: `${((strategy.stats?.hitCount || 0) / (activeStrategies[0].stats?.hitCount || 1)) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </CardBody>
         </Card>

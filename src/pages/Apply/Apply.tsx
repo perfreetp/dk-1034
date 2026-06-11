@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
-import { Send, Clock, CheckCircle, XCircle, Calendar, User, FileText, History, Pause, Play } from 'lucide-react';
+import { Send, Clock, CheckCircle, XCircle, Calendar, User, FileText, History, Pause, Play, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/Common/Card';
 import { Button } from '../../components/Common/Button';
 import { Badge } from '../../components/Common/Badge';
 import { StatusBadge } from '../../components/Common/Badge';
 import { Table, TableRow, TableCell } from '../../components/Common/Table';
-import { useStrategyStore, useUserStore, addAuditLog } from '../../stores';
+import { useStrategyStore, useUserStore, useAuditStore, addAuditLog } from '../../stores';
 import type { Strategy } from '../../types';
 import dayjs from 'dayjs';
 
 export const Apply: React.FC = () => {
   const { strategies, updateStrategy } = useStrategyStore();
   const { currentUser } = useUserStore();
+  const { getLogsByStrategyId } = useAuditStore();
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   const [launchTime, setLaunchTime] = useState('');
   const [launchReason, setLaunchReason] = useState('');
   const [selectedApprover, setSelectedApprover] = useState('李管理员');
+  const [approvalComment, setApprovalComment] = useState('');
+  const [expandedStrategyId, setExpandedStrategyId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
 
   const draftStrategies = strategies.filter((s) => s.status === 'draft');
   const pendingStrategies = strategies.filter((s) => s.status === 'pending');
@@ -50,6 +54,7 @@ export const Apply: React.FC = () => {
       status: newStatus as any,
       approver: currentUser.name,
       approveTime: new Date().toISOString(),
+      approvalComment: approvalComment || undefined,
     };
     
     updateStrategy(strategyId, updates, currentUser.name);
@@ -61,7 +66,7 @@ export const Apply: React.FC = () => {
         '审批通过',
         currentUser.id,
         currentUser.name,
-        `审批通过，计划上线时间：${strategy.launchTime}`
+        approvalComment ? `审批意见：${approvalComment}，计划上线时间：${dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}` : `审批通过，计划上线时间：${dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}`
       );
     } else {
       updateStrategy(strategyId, { launchTime: new Date().toISOString() }, currentUser.name);
@@ -71,14 +76,17 @@ export const Apply: React.FC = () => {
         '策略上线',
         currentUser.id,
         currentUser.name,
-        '审批通过，策略已立即上线'
+        approvalComment ? `审批意见：${approvalComment}，策略已立即上线` : '审批通过，策略已立即上线'
       );
     }
+    
+    setApprovalComment('');
+    setExpandedStrategyId(null);
   };
 
   const handleReject = (strategyId: string) => {
     const strategy = strategies.find(s => s.id === strategyId);
-    updateStrategy(strategyId, { status: 'draft' }, currentUser.name);
+    updateStrategy(strategyId, { status: 'draft', approvalComment }, currentUser.name);
     if (strategy) {
       addAuditLog(
         strategyId,
@@ -86,9 +94,11 @@ export const Apply: React.FC = () => {
         '审批驳回',
         currentUser.id,
         currentUser.name,
-        '审批未通过，策略已驳回'
+        approvalComment ? `审批意见：${approvalComment}` : '审批未通过，策略已驳回'
       );
     }
+    setApprovalComment('');
+    setExpandedStrategyId(null);
   };
 
   const handleLaunch = (strategyId: string) => {
@@ -251,83 +261,286 @@ export const Apply: React.FC = () => {
             <CardHeader>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Clock className="w-5 h-5 text-yellow-500" />
-                待审批（定时上线）
+                待审批工作台
               </h2>
             </CardHeader>
             <CardBody className="p-0">
-              <Table headers={['策略名称', '类型', '计划上线时间', '提交时间']}>
-                {pendingStrategies.map((strategy) => (
-                  <TableRow key={strategy.id}>
-                    <TableCell>
-                      <p className="font-medium">{strategy.name}</p>
-                      <p className="text-xs text-slate-500">{strategy.description}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="default">{strategy.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {strategy.launchTime ? (
-                        <span className="font-medium text-yellow-700">
-                          {dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {dayjs(strategy.updateTime).format('MM-DD HH:mm')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {pendingStrategies.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">
-                      暂无待审批的策略
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Table>
+              {pendingStrategies.length > 0 ? (
+                <div className="space-y-4 p-4">
+                  {pendingStrategies.map((strategy) => {
+                    const logs = getLogsByStrategyId(strategy.id);
+                    const isExpanded = expandedStrategyId === strategy.id;
+                    const estimatedUsers = Math.floor(Math.random() * 10000) + 5000;
+                    
+                    return (
+                      <div key={strategy.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                        <div
+                          className="flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+                          onClick={() => setExpandedStrategyId(isExpanded ? null : strategy.id)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                              <Clock className="w-5 h-5 text-yellow-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900">{strategy.name}</p>
+                              <p className="text-sm text-slate-600 mt-1">{strategy.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <Badge variant="default">{strategy.type}</Badge>
+                            {strategy.launchTime && (
+                              <div className="text-right">
+                                <p className="text-xs text-slate-500">计划上线</p>
+                                <p className="font-medium text-yellow-700">{dayjs(strategy.launchTime).format('MM-DD HH:mm')}</p>
+                              </div>
+                            )}
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-slate-400" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="p-6 border-t border-slate-200 bg-white space-y-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                              <div className="space-y-4">
+                                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                  <FileText className="w-4 h-4" />
+                                  规则摘要
+                                </h3>
+                                <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-blue-700">策略类型：</span>
+                                    <span className="font-medium">{strategy.type}</span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-blue-700">用户类型：</span>
+                                    <span className="font-medium">{strategy.trigger.userTypes?.join(', ') || '全部'}</span>
+                                  </div>
+                                  {strategy.trigger.minAmount && (
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-blue-700">最低消费：</span>
+                                      <span className="font-medium">¥{strategy.trigger.minAmount}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-blue-700">动作类型：</span>
+                                    <span className="font-medium">{strategy.action.actionType}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                  <Calendar className="w-4 h-4" />
+                                  上线排期
+                                </h3>
+                                <div className="bg-yellow-50 p-4 rounded-lg space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-yellow-700">提交时间：</span>
+                                    <span className="font-medium">{dayjs(strategy.updateTime).format('YYYY-MM-DD HH:mm')}</span>
+                                  </div>
+                                  {strategy.launchTime && (
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-yellow-700">计划上线：</span>
+                                      <span className="font-medium text-yellow-900">{dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-yellow-700">申请人：</span>
+                                    <span className="font-medium">{strategy.creator}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                  <User className="w-4 h-4" />
+                                  影响估算
+                                </h3>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                  <div className="text-center">
+                                    <p className="text-3xl font-bold text-green-900">{estimatedUsers.toLocaleString()}</p>
+                                    <p className="text-sm text-green-700 mt-1">预估影响用户数</p>
+                                  </div>
+                                  <div className="mt-4 text-xs text-green-700">
+                                    <p>适用城市：{strategy.dimensions.cities?.join(', ') || '全国'}</p>
+                                    <p>有效期：{strategy.dimensions.effectiveStart || '长期'} 至 {strategy.dimensions.effectiveEnd || '永久'}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {logs.length > 0 && (
+                              <div>
+                                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                                  <History className="w-4 h-4" />
+                                  历史操作
+                                </h3>
+                                <div className="bg-slate-50 p-4 rounded-lg space-y-2 max-h-40 overflow-y-auto">
+                                  {logs.map((log) => (
+                                    <div key={log.id} className="flex justify-between text-sm">
+                                      <span className="text-slate-700">
+                                        {log.action} - {log.operatorName}
+                                      </span>
+                                      <span className="text-slate-500">{dayjs(log.createTime).format('MM-DD HH:mm:ss')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <h3 className="font-semibold text-slate-900 mb-3">审批意见</h3>
+                              <textarea
+                                value={approvalComment}
+                                onChange={(e) => setApprovalComment(e.target.value)}
+                                placeholder="填写审批意见（可选）..."
+                                rows={3}
+                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                              />
+                            </div>
+
+                            <div className="flex justify-end gap-3">
+                              <Button
+                                variant="error"
+                                onClick={() => handleReject(strategy.id)}
+                              >
+                                <XCircle className="w-4 h-4" />
+                                驳回
+                              </Button>
+                              <Button
+                                variant="success"
+                                onClick={() => handleApprove(strategy.id)}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                通过
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500">暂无待审批的策略</p>
+                </div>
+              )}
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-500" />
                 待上线策略
               </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1 rounded text-sm ${viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  列表视图
+                </button>
+                <button
+                  onClick={() => setViewMode('timeline')}
+                  className={`px-3 py-1 rounded text-sm ${viewMode === 'timeline' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  时间线视图
+                </button>
+              </div>
             </CardHeader>
-            <CardBody className="p-0">
-              <Table headers={['策略名称', '状态', '计划上线时间', '审批时间', '操作']}>
-                {pendingLaunchStrategies.map((strategy) => (
-                  <TableRow key={strategy.id}>
-                    <TableCell>
-                      <p className="font-medium">{strategy.name}</p>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={strategy.status} />
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {strategy.launchTime ? dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm') : '-'}
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {strategy.approveTime ? dayjs(strategy.approveTime).format('MM-DD HH:mm') : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="success" size="sm" onClick={() => handleLaunch(strategy.id)}>
-                        立即上线
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {pendingLaunchStrategies.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
-                      暂无待上线的策略
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Table>
+            <CardBody>
+              {viewMode === 'list' ? (
+                <Table headers={['策略名称', '状态', '计划上线时间', '审批时间', '操作']}>
+                  {pendingLaunchStrategies.map((strategy) => (
+                    <TableRow key={strategy.id}>
+                      <TableCell>
+                        <p className="font-medium">{strategy.name}</p>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={strategy.status} />
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {strategy.launchTime ? dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm') : '-'}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {strategy.approveTime ? dayjs(strategy.approveTime).format('MM-DD HH:mm') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="success" size="sm" onClick={() => handleLaunch(strategy.id)}>
+                          立即上线
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {pendingLaunchStrategies.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                        暂无待上线的策略
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Table>
+              ) : (
+                <div className="space-y-4">
+                  {pendingLaunchStrategies.length > 0 ? (
+                    pendingLaunchStrategies
+                      .filter(s => s.launchTime)
+                      .sort((a, b) => new Date(a.launchTime!).getTime() - new Date(b.launchTime!).getTime())
+                      .map((strategy, index) => (
+                        <div key={strategy.id} className="flex items-start gap-4">
+                          <div className="flex flex-col items-center">
+                            <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                              <Clock className="w-5 h-5 text-yellow-600" />
+                            </div>
+                            {index < pendingLaunchStrategies.filter(s => s.launchTime).length - 1 && (
+                              <div className="w-0.5 h-full bg-yellow-200 mt-2" />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-6">
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="font-semibold text-slate-900">{strategy.name}</p>
+                                <StatusBadge status={strategy.status} />
+                              </div>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-slate-600">
+                                  <span className="text-yellow-700">计划上线时间：</span>
+                                  {dayjs(strategy.launchTime).format('YYYY-MM-DD HH:mm')}
+                                </p>
+                                <p className="text-slate-600">
+                                  <span className="text-slate-500">审批时间：</span>
+                                  {strategy.approveTime ? dayjs(strategy.approveTime).format('YYYY-MM-DD HH:mm') : '-'}
+                                </p>
+                                <p className="text-slate-600">
+                                  <span className="text-slate-500">审批人：</span>
+                                  {strategy.approver || '-'}
+                                </p>
+                              </div>
+                              <div className="mt-3 flex justify-end">
+                                <Button variant="success" size="sm" onClick={() => handleLaunch(strategy.id)}>
+                                  立即上线
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                      <p className="text-slate-500">暂无待上线的策略</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardBody>
           </Card>
         </div>

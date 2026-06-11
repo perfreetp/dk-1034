@@ -74,6 +74,7 @@ export const Trial: React.FC = () => {
     const testDate = new Date(data.time);
     if (strategy.dimensions.effectiveStart) {
       const startDate = new Date(strategy.dimensions.effectiveStart);
+      startDate.setHours(0, 0, 0, 0);
       if (testDate < startDate) {
         return false;
       }
@@ -81,6 +82,7 @@ export const Trial: React.FC = () => {
     
     if (strategy.dimensions.effectiveEnd) {
       const endDate = new Date(strategy.dimensions.effectiveEnd);
+      endDate.setHours(23, 59, 59, 999);
       if (testDate > endDate) {
         return false;
       }
